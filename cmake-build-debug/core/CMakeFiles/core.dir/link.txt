@@ -1,0 +1,2 @@
+/usr/bin/ar qc libcore.a  CMakeFiles/core.dir/matrix.c.o CMakeFiles/core.dir/algrank.c.o CMakeFiles/core.dir/time_eval.c.o CMakeFiles/core.dir/gnuplot_i.c.o CMakeFiles/core.dir/csv_reader.c.o CMakeFiles/core.dir/polynomial.c.o CMakeFiles/core.dir/polynomial_matrix.c.o CMakeFiles/core.dir/polynomial_vector.c.o CMakeFiles/core.dir/todo.c.o CMakeFiles/core.dir/c_error.c.o CMakeFiles/core.dir/c_strerror.c.o CMakeFiles/core.dir/c_stream_err.c.o CMakeFiles/core.dir/polynomial_linalg.c.o CMakeFiles/core.dir/lib.c.o
+/usr/bin/ranlib libcore.a

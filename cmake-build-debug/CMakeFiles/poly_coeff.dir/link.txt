@@ -1,0 +1,1 @@
+/usr/bin/cc -g   CMakeFiles/poly_coeff.dir/poly_coeff.c.o  -o poly_coeff 

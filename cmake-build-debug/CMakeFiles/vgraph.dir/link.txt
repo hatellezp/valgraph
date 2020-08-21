@@ -1,0 +1,2 @@
+/usr/bin/ar qc libvgraph.a  CMakeFiles/vgraph.dir/vgraph.c.o
+/usr/bin/ranlib libvgraph.a

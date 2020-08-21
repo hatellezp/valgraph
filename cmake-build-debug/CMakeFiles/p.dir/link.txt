@@ -1,0 +1,1 @@
+/usr/bin/cc -g   CMakeFiles/p.dir/poly_coeff.c.o  -o p  core/libcore.a -lfftw3 -lm -lgsl 

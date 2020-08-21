@@ -1,0 +1,7 @@
+/home/horacio/CLionProjects/valgraphcore/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/horacio/CLionProjects/valgraphcore/cmake-build-debug/CMakeFiles/vgraph.dir
+/home/horacio/CLionProjects/valgraphcore/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/horacio/CLionProjects/valgraphcore/cmake-build-debug/CMakeFiles/main.dir
+/home/horacio/CLionProjects/valgraphcore/cmake-build-debug/core/CMakeFiles/rebuild_cache.dir
+/home/horacio/CLionProjects/valgraphcore/cmake-build-debug/core/CMakeFiles/edit_cache.dir
+/home/horacio/CLionProjects/valgraphcore/cmake-build-debug/core/CMakeFiles/core.dir

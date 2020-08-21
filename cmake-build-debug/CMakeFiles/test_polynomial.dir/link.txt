@@ -1,0 +1,1 @@
+/usr/bin/cc -g   CMakeFiles/test_polynomial.dir/test_polynomial.c.o  -o test_polynomial 
