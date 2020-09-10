@@ -29,6 +29,8 @@ valgraph_strerror (const int valgraph_errno) {
             return "mismatched dimension for pmatrix multiplication";
         case VALGRAPH_PCORRP:
             return "badly constructed or corrupted polynomial";
+        case VALGRAPH_BADPAR:
+            return "bad parameter value input";
         default:
             return "unknown error code";
     }

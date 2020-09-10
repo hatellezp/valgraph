@@ -3,14 +3,15 @@
 //
 
 #include "algrank.h"
+#include "c_errno.h"
 
-gsl_complex compute_v(gsl_matrix_complex * m, gsl_complex val, int ind) {
-    int r, c;
+gsl_complex compute_v(gsl_matrix_complex * m, gsl_complex mmod, gsl_complex vmod, size_t ind) {
+    size_t r, c;
     r = m -> size1;
     c = m -> size2;
+
     if (r != c) { // we need a square matrix
-        printf("need to be an square matrix\n");
-        return gsl_complex_rect(-1, -1); // think how to raise an error here
+        VALGRAPH_ERROR_VAL("matrix must be square", VALGRAPH_MNOTSQR, gsl_complex_rect(0., 0.));
     } else {
         // allocate for matrices
         gsl_matrix_complex * mcopy = gsl_matrix_complex_alloc(r, c);
@@ -21,12 +22,13 @@ gsl_complex compute_v(gsl_matrix_complex * m, gsl_complex val, int ind) {
         gsl_matrix_complex_memcpy(mcopy, m);
 
         // multiply iden by v and add mcopy
-        gsl_matrix_complex_scale(miden, val);
-        // gsl_matrix_complex_add(mcopy, miden); TODO: decide what to do with this
-        gsl_matrix_complex_sub(mcopy, miden);
+        gsl_matrix_complex_scale(mcopy, mmod);
+        gsl_matrix_complex_sub(miden, mcopy);
 
         // change the i-columnt with ones
         gsl_vector_complex * v = gsl_vector_complex_ones(r);
+        gsl_vector_complex_scale(v, vmod);
+
         gsl_matrix_complex_chcol(mcopy, v, ind);
 
 
@@ -47,14 +49,18 @@ gsl_complex compute_v(gsl_matrix_complex * m, gsl_complex val, int ind) {
     }
 }
 
+// this function copies the matrix m and erases from the copy the diagonal values, setting them to 0 !!!
 // this function does the same work as compute_v but for a full vector this time
-gsl_vector_complex * compute_full_v(gsl_matrix_complex * m, gsl_complex val) {
-    int r, c;
+void compute_full_v(gsl_matrix_complex * m, gsl_vector_complex * x, gsl_complex identity_mod, gsl_complex vector_mod) {
+    size_t r, c, xs;
     r = m -> size1;
     c = m -> size2;
+    xs = x -> size;
+
     if (r != c) { // we need a square matrix
-        printf("need to be an square matrix\n");
-        return gsl_vector_complex_calloc(r); // think how to raise an error here
+        VALGRAPH_ERROR_VOID("The matrix must be square", VALGRAPH_MNOTSQR);
+    } else if (xs != r) {
+        VALGRAPH_ERROR_VOID("the solution vector must have same dimension as the matrix", VALGRAPH_VBADLEN);
     } else {
         // allocate for matrices
         gsl_matrix_complex * mcopy = gsl_matrix_complex_alloc(r, c);
@@ -64,30 +70,28 @@ gsl_vector_complex * compute_full_v(gsl_matrix_complex * m, gsl_complex val) {
         gsl_matrix_complex_set_identity(miden) ;
         gsl_matrix_complex_memcpy(mcopy, m);
 
-        // multiply iden by v and add mcopy
-        gsl_matrix_complex_scale(miden, val);
-        // gsl_matrix_complex_add(mcopy, miden); // TODO: this is important to decide
-        gsl_matrix_complex_sub(mcopy, miden);
+        // set the diagonal of mcopy to zero, as a measure of security
+        for(size_t i=0; i<r; i++) {
+            gsl_matrix_complex_set(mcopy, i, i, gsl_complex_rect(0., 0.));
+        }
 
+        // UPDATE: the new computation is: (identity_mod*1 - A)
+        gsl_matrix_complex_scale(miden, identity_mod); // perform identity_mod * I
+        gsl_matrix_complex_sub(miden, mcopy); // perform identity_mod*1 - A
 
-        // change the i-columnt with ones
+        // BE CAREFUL: the important matrix lives in miden now
+
+        // create right-hand vector
         gsl_vector_complex * v = gsl_vector_complex_ones(r);
-        // gsl_matrix_complex_chcol(mcopy, v, ind);
+        // scale by vmod
+        gsl_vector_complex_scale(v, vector_mod); // perform vmod*(1,...,1)
 
-
-        // compute the determinant
+        // no determinant needed, compute directly the solution to (identity_mod*1 - A)X = vector_mod*(1,...,1)
         gsl_permutation * p = gsl_permutation_alloc(r); // same size as c
         int signum;
-        gsl_linalg_complex_LU_decomp(mcopy, p, &signum);
+        gsl_linalg_complex_LU_decomp(miden, p, &signum);
 
-        // here we work differently
-        // we need the solution to Ax=(1,...1) and also det(A)
-        gsl_vector_complex * sol = gsl_vector_complex_alloc(r);
-        gsl_linalg_complex_LU_solve(mcopy, p, v, sol); // here we retrieve the solution
-        gsl_complex det = gsl_linalg_complex_LU_det(mcopy, signum); // here the determinant
-
-        // and now put them together
-        gsl_vector_complex_scale(sol, det);
+        gsl_linalg_complex_LU_solve(miden, p, v, x); // here we retrieve the solution and store it in x
 
         // free the memory
         gsl_matrix_complex_free(mcopy);
@@ -95,36 +99,39 @@ gsl_vector_complex * compute_full_v(gsl_matrix_complex * m, gsl_complex val) {
         gsl_vector_complex_free(v);
         gsl_permutation_free(p);
 
-        // return the value
-        return sol;
+        // no need of return
+        // the solution is stored in x
     }
 }
 
-gsl_vector_complex * create_unity_roots(int n, int inverse) { // I don't like the inverse arg as an int
-    gsl_vector_complex * rts = gsl_vector_complex_alloc(n); // allocate memory
+void create_unity_roots(gsl_vector_complex * units, size_t n, int inverse) { // I don't like the inverse arg as an int
     double t = (inverse) ? -1. : 1.; // be sure of this
-
-    for(int k=0; k<n; k++) {
-        double arg = t*((2.0*M_PI*k) / ((double)n));
-        double real_part = cos(arg);
-        double imag_part = sin(arg);
-        gsl_complex z = gsl_complex_rect(real_part, imag_part);
-        gsl_vector_complex_set(rts, k, z);
+    size_t k, usize;
+    usize = units -> size;
+    if (usize != n) {
+        VALGRAPH_ERROR_VOID("vector length and number of roots are different", VALGRAPH_VBADLEN);
+    } else {
+        for(k=0; k<n; k++) {
+            double arg = t*((2.0*M_PI*k) / ((double)n));
+            double real_part = cos(arg);
+            double imag_part = sin(arg);
+            gsl_complex z = gsl_complex_rect(real_part, imag_part);
+            gsl_vector_complex_set(units, k, z);
+        }
     }
-
-    return rts;
 }
 
 double bound_only_computation(gsl_matrix_complex * m, double tolerance, int method) {
-    int r,c;
+    size_t r,c;
     r = m -> size1;
     c = m -> size2;
+
     if (r != c) { // verify is an square matrix
         printf("only square matrix!\n");
-        return -1; // TODO: find how to raise an exception
+        VALGRAPH_ERROR_VAL("matrix must be square", VALGRAPH_MNOTSQR, 0);
     } else {
-        int N = r - 1; // we need only r-1 points, because we know the polynomial has at most degree r-2
-        int i, indv, indp, indpi, indpj;
+        size_t N = r - 1; // we need only r-1 points, because we know the polynomial has at most degree r-2
+        size_t i, indv, indp, indpi, indpj;
 
         // initialize the fftw necessary parts
         fftw_complex * in, * out;
@@ -134,7 +141,8 @@ double bound_only_computation(gsl_matrix_complex * m, double tolerance, int meth
         p = fftw_plan_dft_1d(N, in, out, FFTW_BACKWARD, FFTW_MEASURE); // TODO: test FFTW_ESTIMATE too
 
         // get unity roots
-        gsl_vector_complex * rts = create_unity_roots(N, 1);
+        gsl_vector_complex * rts = gsl_vector_complex_alloc(N);
+        create_unity_roots(rts, N, UR_BACKWARDS);
 
         // create the matrix that will keep the values
         // this keeps array p_i(r) where i is the number of the corresponding polynomial and r is a root of the unity
@@ -145,6 +153,8 @@ double bound_only_computation(gsl_matrix_complex * m, double tolerance, int meth
         // the first computing a value at a time, the second a full vector for each loop
         if (method == SINGLE_V) { // single value method
             // populate the array
+
+            /*
             for(indp=0; indp<N+1; indp++) { // indp is the polynomial index
                 for(indv=0; indv<N; indv++) { // indv is the value index (the unity root)
                     gsl_complex root = gsl_vector_complex_get(rts, indv);
@@ -155,11 +165,12 @@ double bound_only_computation(gsl_matrix_complex * m, double tolerance, int meth
                     pvalues[(N+1)*indp + N*indv + 1] = GSL_IMAG(value);
                 }
             }
+             */
         } else if (method == FULL_V) { // full vector method
-            gsl_vector_complex * values; // create vector
+            gsl_vector_complex * values = gsl_vector_complex_alloc(N); // create vector
             for(indv=0; indv<N; indv++) {
                 gsl_complex root = gsl_vector_complex_get(rts, indv);
-                values = compute_full_v(m, root);
+                compute_full_v(m, values, root, gsl_complex_rect(1., 0.)); // here vmod should be (1,0) and mmod should be the root
 
                 for(indp=0; indp<N+1; indp++) {
                     gsl_complex z = gsl_vector_complex_get(values, indp);
@@ -172,8 +183,8 @@ double bound_only_computation(gsl_matrix_complex * m, double tolerance, int meth
         }
 
         // this values are common for all internal loops
-        double current_max = 0.;
-        int real_degree;
+        double current_max = 1.; // I prefer one as current max, this way we avoid some negative unpleasant errors
+        size_t real_degree;
         double possible_coeff_real, max_coeff;
         double Ndouble = (double)N;
 
@@ -210,7 +221,7 @@ double bound_only_computation(gsl_matrix_complex * m, double tolerance, int meth
 
                     // now that we have the real degree we compute the bound
                     // where the max comprehend all polynomials
-                    for(int deg=0; deg<real_degree; deg++) {
+                    for(size_t deg=0; deg<real_degree; deg++) {
                         current_max = fmax(current_max, (-out[deg][0])/max_coeff);
                     }
                 }
@@ -298,7 +309,7 @@ void compute_ranking_stable(gsl_matrix_complex * m, double tolerance, int method
 /*
  * thanks to 'Numerical Recipes in C' for the O(n^2) algorithm
  */
-void polynomial_coefficient_computation(double * x, double * y, double * cof, int n) {
+void polynomial_coefficient_computation(double * x, double * y, double * cof, size_t n) {
     int k, j, i;
     double phi, ff, b;
     double * s = malloc(sizeof(double)*n);

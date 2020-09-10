@@ -20,6 +20,7 @@ enum {
     VALGRAPH_MNOTSQR = 8, // pmatrix not square
     VALGRAPH_MBADMUL = 9, // pmatrix can't be multiplied
     VALGRAPH_PCORRP = 10, // badly constructed polynomial
+    VALGRAPH_BADPAR = 11, // bad parameter value
 };
 
 
